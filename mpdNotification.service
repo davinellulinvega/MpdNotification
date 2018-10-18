@@ -1,0 +1,10 @@
+[Unit]
+Description=Notification script of the Music Player Daemon
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 %h/Workspaces/MpdNotification/mpdNotification.py
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
