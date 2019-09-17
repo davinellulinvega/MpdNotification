@@ -86,9 +86,9 @@ class MpdClt(MPDClient):
                                             self._notification.set_icon_from_pixbuf(GdkPixbuf.Pixbuf.new_from_file_at_size(files[0], 100, 100))
                                             break
 
-                            self._notification.update("MPD Notification", message="<i>Playing</i> <b>{}"
-                                                      "</b>\n<i>by</i> {}\n<i>from</i> {}".format(curr_song.get('title', ''), 
-                                                                                                  curr_song.get('artist', ''), 
+                            self._notification.update("MPD Notification", message="<i>Playing:</i> <b>{}"
+                                                      "</b>\n<i>by:</i> {}\n<i>from:</i> {}".format(curr_song.get('title', ''),
+                                                                                                  curr_song.get('artist', ''),
                                                                                                   curr_song.get('album', '')))
 
                         # Update the old status
