@@ -1,17 +1,19 @@
 #!/usr/bin/python3
-import os
-from glob import glob
-import logging
+from pathlib import Path
 from mpd import MPDClient
-import notify2
-from gi.repository import GdkPixbuf
+from notifypy import Notify
+
+
+# Declare required constants
+DFT_ICON = Path("/usr/share/icons/AdwaitaLegacy/48x48/legacy/media-tape.png")
+
 
 class MpdClt(MPDClient):
     """
     Define a simple Mpd client that displays notifications whenever something relevant happens.
     """
 
-    def __init__(self, host='localhost', port=6600, music_dir=os.path.join('/', 'home', 'davinellulinvega','Music')):
+    def __init__(self, host='localhost', port=6600, music_dir=Path("~/Music/").expanduser().resolve()):
         """
         Initialize the required attributes.
         """
@@ -20,8 +22,10 @@ class MpdClt(MPDClient):
         super(MpdClt, self).__init__()
 
         # Notification stuff
-        self._notification = notify2.Notification("MPD Notification", "0")
-        notify2.init("MPD Notification")
+        self._notification = Notify(default_notification_title="MPD Notification",
+                                    default_notification_icon=DFT_ICON,
+                                    default_notification_urgency='low',
+                                    default_notification_application_name='MPD Notification')
 
         # Connect to the mpd daemon
         self._host = host
@@ -30,8 +34,6 @@ class MpdClt(MPDClient):
         # Other stuff
         self._db_updating = False
         self._music_dir = music_dir
-        logging.basicConfig(filename='/tmp/mpdNotification.log')
-        self._log = logging.getLogger()
 
     def main(self):
         """
@@ -54,10 +56,10 @@ class MpdClt(MPDClient):
                     # Check the affected sub-system
                     if subsys == 'update':
                         if self._db_updating:
-                            self._notification.update('MPD Notification', message='Mpd database <b>updated !!!</b>')
+                            self._notification.message = 'Mpd database <b>updated !!!</b>'
                             self._db_updating = False
                         else:
-                            self._notification.update('MPD Notification', message='Mpd database <b>updating ...</b>')
+                            self._notification.message = 'Mpd database <b>updating ...</b>'
                             self._db_updating = True
                     elif subsys == 'player':
                         # Get the current status
@@ -66,30 +68,26 @@ class MpdClt(MPDClient):
                         # Find out what changed
                         player_state = curr_status.get('state', '')
                         if player_state == 'pause':
-                            self._notification.update('MPD Notification', message='<i>Paused playback ...</i>')
+                            self._notification.message = '<i>Paused playback ...</i>'
                         elif player_state == 'stop':
-                            self._notification.update('MPD Notification', message='<i>Stopped playback ...</i>')
+                            self._notification.message = '<i>Stopped playback ...</i>'
                         elif player_state == 'play' or old_status['songid'] != curr_status['songid']:
                             curr_song = self.currentsong()
                             if old_status['songid'] != curr_status['songid']:
                                 file_name = curr_song.get('file', None)
                                 if file_name is not None:
-                                    dir_name = os.path.join(self._music_dir, os.path.dirname(file_name))
-                                    icon = None
+                                    dir_name = self._music_dir.joinpath(file_name).parent
+                                    #dir_name = os.path.join(self._music_dir, os.path.dirname(file_name))
                                     for ext in ['jpg', 'png', 'jpeg']:
                                         try:
-                                            files = glob("{}/*.{}".format(dir_name, ext))
+                                            files = list(dir_name.glob(f"*.{ext}"))
                                         except:
-                                            self._log.exception('An error occurred while looking for Album cover:', exc_info=True)
                                             break
                                         if len(files) > 0:
-                                            self._notification.set_icon_from_pixbuf(GdkPixbuf.Pixbuf.new_from_file_at_size(files[0], 100, 100))
+                                            self._notification.icon = files[0]
                                             break
 
-                            self._notification.update("MPD Notification", message="<i>Playing:</i> <b>{}"
-                                                      "</b>\n<i>by:</i> {}\n<i>from:</i> {}".format(curr_song.get('title', ''),
-                                                                                                  curr_song.get('artist', ''),
-                                                                                                  curr_song.get('album', '')))
+                            self._notification.message = f"<i>Playing:</i> <b>{curr_song.get('title', '')}</b>\n<i>by:</i> {curr_song.get('artist', '')}\n<i>album:</i> {curr_song.get('album', '')}"
 
                         # Update the old status
                         old_status = curr_status
@@ -99,22 +97,20 @@ class MpdClt(MPDClient):
                         for old_out, curr_out in zip(old_outputs, curr_outputs):
                             if old_out['outputenabled'] != curr_out['outputenabled']:
                                 if curr_out['outputenabled'] == '1':
-                                    self._notification.update('MPD Notification', message='Enabled {}'.format(curr_out['outputname']))
+                                    self._notification.message = f"Enabled {curr_out['outputname']}"
                                 else:
-                                    self._notification.update('MPD Notification', message='Disabled {}'.format(curr_out['outputname']))
+                                    self._notification.message = f"Disabled {curr_out['outputname']}"
 
                         # Update the old_outputs
                         old_outputs = curr_outputs
 
                     # Display the notification
-                    self._notification.show()
+                    self._notification.send()
+                    self._notification.icon = DFT_ICON
         except:
-            self._log.exception('An error occurred within the main loop:', exc_info=True)
             # Close all the things
-            self._notification.close()
             self.disconnect()
             self.close()
-            logging.shutdown()
 
 if __name__ == '__main__':
     # Get an MPD client
